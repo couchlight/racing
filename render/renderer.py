@@ -33,6 +33,9 @@ class Renderer:
         self.blit_program["u_texture"].value = 0
         self.blit_vao = ctx.vertex_array(self.blit_program, [])
 
+        self.overlay_texture = ctx.texture(internal_size, 4)
+        self.overlay_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+
         # Bound for meshes that have no texture.
         self.white = self.texture(np.full((1, 1, 3), 255, dtype="u1"))
 
@@ -67,6 +70,17 @@ class Renderer:
         self.program["u_mvp"].write(mvp.T.astype("f4").tobytes())
         (mesh.texture or self.white).use(0)
         mesh.render()
+
+    def overlay(self, pixels):
+        """Alpha-blend an RGBA image over the low-res frame. `pixels` is
+        internal_size RGBA bytes, bottom row first. Call between begin() and end()."""
+        self.overlay_texture.write(pixels)
+        self.ctx.disable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
+        self.ctx.enable(moderngl.BLEND)
+        self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+        self.overlay_texture.use(0)
+        self.blit_vao.render(moderngl.TRIANGLES, vertices=3)
+        self.ctx.disable(moderngl.BLEND)
 
     def end(self):
         self.ctx.screen.use()
