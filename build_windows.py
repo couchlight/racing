@@ -214,11 +214,16 @@ def build_app():
 
         process.wait()
 
-        if process.returncode == 0:
-            print("✅ Nuitka compilation successful")
-            return True
-        print(f"❌ Nuitka compilation failed (return code: {process.returncode})")
-        return False
+        if process.returncode != 0:
+            print(f"❌ Nuitka compilation failed (return code: {process.returncode})")
+            return False
+
+        # Nuitka names the dist folder after the entry script (main.dist).
+        nuitka_dist = DIST_ROOT / f"{Path(ENTRY_POINT).stem}.dist"
+        if nuitka_dist != DIST:
+            nuitka_dist.rename(DIST)
+        print("✅ Nuitka compilation successful")
+        return True
 
     except Exception as e:
         print(f"❌ Build error: {e}")
