@@ -4,12 +4,17 @@ from render.matrices import UP, forward, look_at, perspective
 
 
 class Camera:
-    """Perspective camera with a chase mode."""
+    """Perspective camera with first-person and chase modes."""
 
     def __init__(self, aspect, fov_y_deg=60.0, near=0.2, far=250.0):
         self.projection = perspective(fov_y_deg, aspect, near, far)
         self.position = np.array([0.0, 3.0, -8.0], dtype="f4")
         self.target = np.zeros(3, dtype="f4")
+        self.up = UP
+
+        # First-person parameters: eye position relative to the car.
+        self.eye_height = 1.1
+        self.eye_forward = 0.5
 
         # Chase parameters
         self.distance = 7.0     # behind the target
@@ -18,7 +23,14 @@ class Camera:
         self.stiffness = 6.0    # higher = snappier follow
 
     def view(self):
-        return look_at(self.position, self.target)
+        return look_at(self.position, self.target, self.up)
+
+    def first_person(self, position, fwd, up):
+        """Look out of a car at `position` facing `fwd`, tilted with the road."""
+        self.position = (position + up * self.eye_height
+                         + fwd * self.eye_forward).astype("f4")
+        self.target = self.position + fwd
+        self.up = up
 
     def follow(self, target_pos, heading, dt):
         """Ease towards a point behind and above a target facing `heading`."""
@@ -26,9 +38,11 @@ class Camera:
         desired = target_pos - fwd * self.distance + UP * self.height
         self.position += (desired - self.position) * min(1.0, self.stiffness * dt)
         self.target = target_pos + fwd * self.look_ahead
+        self.up = UP
 
     def snap(self, target_pos, heading):
         """Jump straight to the chase position (no easing)."""
         self.position = (target_pos - forward(heading) * self.distance
                          + UP * self.height).astype("f4")
         self.target = target_pos + forward(heading) * self.look_ahead
+        self.up = UP
