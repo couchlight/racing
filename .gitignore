@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+
+venv/
+.venv/
+.env
+*.env
+
+# Build / release output
+dist_msvc/
+update_output/
+installer_output/
+
+# Signing material — NEVER commit
+*.pem
+*.pfx
+*.cer
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
