@@ -54,3 +54,13 @@ def rotate_y(angle):
 def forward(heading):
     """Unit forward vector for a heading about Y. Heading 0 faces +Z."""
     return np.array([math.sin(heading), 0.0, math.cos(heading)], dtype="f4")
+
+
+def frame_matrix(left, up, fwd, position):
+    """Model matrix from a basis: local +X -> left, +Y -> up, +Z -> fwd."""
+    m = np.identity(4, dtype="f4")
+    m[:3, 0] = left
+    m[:3, 1] = up
+    m[:3, 2] = fwd
+    m[:3, 3] = position
+    return m

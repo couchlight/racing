@@ -6,7 +6,7 @@ from render.matrices import UP, forward, look_at, perspective
 class Camera:
     """Perspective camera with a chase mode."""
 
-    def __init__(self, aspect, fov_y_deg=60.0, near=0.2, far=120.0):
+    def __init__(self, aspect, fov_y_deg=60.0, near=0.2, far=250.0):
         self.projection = perspective(fov_y_deg, aspect, near, far)
         self.position = np.array([0.0, 3.0, -8.0], dtype="f4")
         self.target = np.zeros(3, dtype="f4")

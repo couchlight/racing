@@ -1,4 +1,4 @@
-import math
+import sys
 
 import numpy as np
 import pygame
@@ -6,46 +6,24 @@ import pygame
 from controls.input_state import InputManager
 from render import primitives
 from render.camera import Camera
-from render.matrices import forward, rotate_y, translate
+from render.matrices import frame_matrix
 from render.renderer import Renderer
 from render.window import create_window
+from track import mesh as track_mesh
+from track.generator import generate
 from version import get_version
 
 WINDOW_SIZE = (960, 720)
 TITLE = "Racing"
+DEFAULT_SEED = 1
+CHECKPOINT_COUNT = 4
 
-# Placeholder test scene and driving model — replaced by the procedural
-# track (phase 4) and the car (phase 5).
-GROUND_CELLS = 48
-GROUND_CELL_SIZE = 5.0
-SPAWN_CLEAR_RADIUS = 15.0
-MAX_SPEED = 40.0      # units per second
+# Placeholder driving model, in track space — replaced by the car (phase 5).
+MAX_SPEED = 60.0      # metres per second
 ACCELERATION = 18.0
 BRAKING = 35.0
 DRAG = 4.0            # deceleration when coasting
-TURN_RATE = 1.8       # radians per second at full steer
-
-
-def make_ground_texture():
-    """16x16 noisy asphalt tile with a light edge, so the affine warp is visible."""
-    rng = np.random.default_rng(1)
-    tile = rng.integers(70, 100, size=(16, 16, 1), dtype="u1").repeat(3, axis=2)
-    tile[0, :] = tile[:, 0] = 130
-    return tile
-
-
-def make_scenery():
-    """Randomly scattered boxes, kept clear of the spawn point."""
-    rng = np.random.default_rng(7)
-    boxes = []
-    while len(boxes) < 120:
-        x, z = rng.uniform(-110.0, 110.0, size=2)
-        if math.hypot(x, z) < SPAWN_CLEAR_RADIUS:
-            continue
-        size = (rng.uniform(1.5, 5.0), rng.uniform(1.0, 9.0), rng.uniform(1.5, 5.0))
-        color = rng.uniform(0.35, 1.0, size=3)
-        boxes.append(primitives.translated(primitives.box(size, color), (x, 0.0, z)))
-    return np.concatenate(boxes)
+SLIDE_RATE = 8.0      # lateral metres per second at full steer
 
 
 def make_car():
@@ -57,27 +35,29 @@ def make_car():
 
 
 def main():
+    seed = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SEED
+
     pygame.init()
     ctx = create_window(WINDOW_SIZE, f"{TITLE} {get_version()}")
     renderer = Renderer(ctx)
     camera = Camera(aspect=WINDOW_SIZE[0] / WINDOW_SIZE[1])
 
-    ground = renderer.mesh(
-        primitives.ground(GROUND_CELLS, GROUND_CELL_SIZE),
-        renderer.texture(make_ground_texture()))
-    scenery = renderer.mesh(make_scenery())
+    track = generate(seed)
+    checkpoints = [track.length * k / CHECKPOINT_COUNT for k in range(CHECKPOINT_COUNT)]
+    track_meshes = track_mesh.build(track, renderer, checkpoints, seed)
     car = renderer.mesh(make_car())
 
     inputs = InputManager()
     clock = pygame.time.Clock()
-    car_pos = np.zeros(3, dtype="f4")
-    heading = 0.0
+    distance = 0.0
+    lateral = 0.0
     speed = 0.0
-    camera.snap(car_pos, heading)
+    lateral_limit = track.half_width - 1.0
+    camera.snap(track.surface(distance, lateral).astype("f4"), track.heading(distance))
 
     running = True
     while running:
-        dt = clock.tick(60) / 1000.0
+        dt = min(clock.tick(60) / 1000.0, 0.05)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -91,16 +71,18 @@ def main():
         if state.throttle == 0.0:
             speed -= DRAG * dt
         speed = min(max(speed, 0.0), MAX_SPEED)
-        # Positive steer is right, which is a decreasing heading.
-        heading -= state.steer * TURN_RATE * min(1.0, speed / 8.0) * dt
-        car_pos += forward(heading) * speed * dt
+        distance += speed * dt
+        lateral += state.steer * SLIDE_RATE * min(1.0, speed / 8.0) * dt
+        lateral = min(max(lateral, -lateral_limit), lateral_limit)
 
-        camera.follow(car_pos, heading, dt)
+        car_pos = track.surface(distance, lateral).astype("f4")
+        tangent, banked_right, normal = track.orientation(distance)
+        camera.follow(car_pos, track.heading(distance), dt)
 
         renderer.begin(camera)
-        renderer.draw(ground)
-        renderer.draw(scenery)
-        renderer.draw(car, translate(*car_pos) @ rotate_y(heading))
+        for mesh in track_meshes:
+            renderer.draw(mesh)
+        renderer.draw(car, frame_matrix(-banked_right, normal, tangent, car_pos))
         renderer.end()
         pygame.display.flip()
 

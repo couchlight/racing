@@ -15,8 +15,8 @@ class Renderer:
         self.ctx = ctx
         self.internal_size = internal_size
         self.fog_color = (0.55, 0.65, 0.8)
-        self.fog_start = 40.0
-        self.fog_end = 110.0
+        self.fog_start = 60.0
+        self.fog_end = 230.0
 
         self.program = ctx.program(vertex_shader=shaders.PS1_VERTEX,
                                    fragment_shader=shaders.PS1_FRAGMENT)
