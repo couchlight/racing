@@ -12,6 +12,15 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Controls
+
+| | Gamepad | Keyboard |
+|---|---|---|
+| Steer | Left stick | Left / Right or A / D |
+| Throttle | RT | Up or W |
+| Brake | LT | Down or S |
+| Quit | | Esc |
+
 ## Build (Windows exe)
 
 From "Developer PowerShell for VS 2022":

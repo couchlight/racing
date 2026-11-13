@@ -3,9 +3,10 @@ import math
 import numpy as np
 import pygame
 
+from controls.input_state import InputManager
 from render import primitives
 from render.camera import Camera
-from render.matrices import rotate_y, translate
+from render.matrices import forward, rotate_y, translate
 from render.renderer import Renderer
 from render.window import create_window
 from version import get_version
@@ -13,12 +14,16 @@ from version import get_version
 WINDOW_SIZE = (960, 720)
 TITLE = "Racing"
 
-# Placeholder test scene — replaced by the procedural track (phase 4) and
-# the car model (phase 5).
+# Placeholder test scene and driving model — replaced by the procedural
+# track (phase 4) and the car (phase 5).
 GROUND_CELLS = 48
 GROUND_CELL_SIZE = 5.0
-CIRCLE_RADIUS = 24.0
-CIRCLE_SPEED = 14.0   # units per second
+SPAWN_CLEAR_RADIUS = 15.0
+MAX_SPEED = 40.0      # units per second
+ACCELERATION = 18.0
+BRAKING = 35.0
+DRAG = 4.0            # deceleration when coasting
+TURN_RATE = 1.8       # radians per second at full steer
 
 
 def make_ground_texture():
@@ -30,12 +35,12 @@ def make_ground_texture():
 
 
 def make_scenery():
-    """Randomly scattered boxes, kept clear of the driving circle."""
+    """Randomly scattered boxes, kept clear of the spawn point."""
     rng = np.random.default_rng(7)
     boxes = []
     while len(boxes) < 120:
         x, z = rng.uniform(-110.0, 110.0, size=2)
-        if abs(math.hypot(x, z) - CIRCLE_RADIUS) < 6.0:
+        if math.hypot(x, z) < SPAWN_CLEAR_RADIUS:
             continue
         size = (rng.uniform(1.5, 5.0), rng.uniform(1.0, 9.0), rng.uniform(1.5, 5.0))
         color = rng.uniform(0.35, 1.0, size=3)
@@ -63,9 +68,12 @@ def main():
     scenery = renderer.mesh(make_scenery())
     car = renderer.mesh(make_car())
 
+    inputs = InputManager()
     clock = pygame.time.Clock()
-    angle = 0.0
-    first_frame = True
+    car_pos = np.zeros(3, dtype="f4")
+    heading = 0.0
+    speed = 0.0
+    camera.snap(car_pos, heading)
 
     running = True
     while running:
@@ -77,17 +85,17 @@ def main():
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
 
-        # Drive the placeholder car around a circle.
-        angle += CIRCLE_SPEED / CIRCLE_RADIUS * dt
-        car_pos = np.array([math.sin(angle) * CIRCLE_RADIUS, 0.0,
-                            math.cos(angle) * CIRCLE_RADIUS], dtype="f4")
-        heading = angle + math.pi / 2.0
+        state = inputs.poll()
 
-        if first_frame:
-            camera.snap(car_pos, heading)
-            first_frame = False
-        else:
-            camera.follow(car_pos, heading, dt)
+        speed += (state.throttle * ACCELERATION - state.brake * BRAKING) * dt
+        if state.throttle == 0.0:
+            speed -= DRAG * dt
+        speed = min(max(speed, 0.0), MAX_SPEED)
+        # Positive steer is right, which is a decreasing heading.
+        heading -= state.steer * TURN_RATE * min(1.0, speed / 8.0) * dt
+        car_pos += forward(heading) * speed * dt
+
+        camera.follow(car_pos, heading, dt)
 
         renderer.begin(camera)
         renderer.draw(ground)
