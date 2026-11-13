@@ -71,7 +71,7 @@ def check_build_environment():
     py_version = sys.version_info
     print(f"✅ Python {py_version.major}.{py_version.minor}.{py_version.micro}")
 
-    for module in ("pygame", "moderngl"):
+    for module in ("pygame", "moderngl", "numpy"):
         try:
             __import__(module)
             print(f"✅ {module} available")
